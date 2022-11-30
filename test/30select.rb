@@ -1,4 +1,4 @@
-$q = $c.prepare("select id,str from test")
+$q = $c.prepare("select id,str from test order by id")
 
 if $q.column(0).name.upcase != "ID" then raise "fetch failed" end
 if $q.column(1).name.upcase != "STR" then raise "fetch failed" end

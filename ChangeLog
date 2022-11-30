@@ -1,8 +1,38 @@
 ODBC binding for Ruby
 ---------------------
 
-HEAD
-  * migrated to hoe and rake-compiler for the build process
+Sat Dec 26 2020 version 0.999991 released
+
+	* update to compile with newer Ruby releases
+	* report larger width for SQL_(DECIMAL|NUMERIC) columns
+
+Wed Feb 28 2018 version 0.99999 released
+
+	* update to compile with newer Ruby releases, thanks
+	  Lars Kanis for patch
+	* added ODBC::Database.login_timeout to get/set the
+	  SQL_LOGIN_TIMEOUT connection attribute
+
+Wed Feb 15 2017 version 0.99998 released
+
+	* minor update to compile with Ruby 2.4, thangs to Kevin Deisz
+	* preset output vars before SQLColAttributes() call
+
+Wed Apr 15 2015 version 0.99997 released
+
+	* fixed bug (typo) when compiling with Ruby < 2.0
+
+Wed Mar 25 2015 version 0.99996 released
+
+	* when built for Ruby >= 2.0 release GVL for potentially
+	  long running ODBC API functions, thanks Matt Conover
+	  for initial implementation
+
+Wed Mar 13 2013 version 0.99995 released
+
+	* added ODBC::Database.use_sql_column_name= flag to switch
+	  usage of SQLColAttributes(SQL_COLUMN_LABEL) to 
+	  SQLColAttributes(SQL_COLUMN_NAME) on per connection basis
 
 Sat Jan 15 2011 version 0.99994 released
 
@@ -74,7 +104,7 @@ Fri Sep 15 2006 version 0.9993 released
 
 	* more tweaks in extconf.rb for --enable-dlopen'ed utf8 version
 	  thanks Daigo Moriwaki for testing
-	* eliminated warnings for installer functions
+	* eliminated warnings for installer functions 
 
 Mon Sep 11 2006 version 0.9992 released
 
@@ -85,7 +115,7 @@ Mon Sep 11 2006 version 0.9992 released
 	  by Neville Burnell
 	* handle SQL_NO_DATA for chunk-wise SQLGetData()
 	* determine dynamically which API (UNICODE or ANSI) to
-	  use for ODBC installer functions
+	  use for ODBC installer functions	
 	* more 64 bit fixes
 	* added missing SQLEndTran() in init.c
 
@@ -143,7 +173,7 @@ Tue Sep 07 2004 version 0.995 released
 
 Wed Jul 14 2004 version 0.994 released
 
-	* fixed ODBC::Database.new|connect so that
+	* fixed ODBC::Database.new|connect so that 
 	  ODBC::Database.new.drvconnect(string) works
 	* fixed SQLTCHAR detect for Win32 in extconf.rb,
 	  thanks to Pedro Luis Castedo Cepeda

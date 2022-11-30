@@ -1,8 +1,6 @@
 require 'mkmf'
 
-if enable_config('win32-cross-compilation')
-  PLATFORM = 'mingw32'
-elsif ! defined? PLATFORM
+if ! defined? PLATFORM
   PLATFORM = RUBY_PLATFORM
 end
 
@@ -19,9 +17,10 @@ def have_library_ex(lib, func="main", headers=nil)
     end
   end
 end
-
+ 
 dir_config("odbc")
 have_header("version.h")
+have_header("ruby/version.h")
 have_header("sql.h") || begin
   puts "ERROR: sql.h not found"
   exit 1
@@ -80,6 +79,40 @@ rescue
   puts "WARNING: the option -DHAVE_TYPE_SQLULEN"
 end
 $have_odbcinst_h = have_header("odbcinst.h")
+begin
+  if PLATFORM !~ /(mingw|cygwin)/ then
+    header = "sqltypes.h"
+  else
+    header = ["windows.h", "sqltypes.h"]
+  end
+  if defined? have_type
+    have_type("SQLROWOFFSET", header)
+  else
+    throw
+  end
+rescue
+  puts "WARNING: please check sqltypes.h for SQLROWOFFSET manually,"
+  puts "WARNING: if defined, modify CFLAGS in Makefile to contain"
+  puts "WARNING: the option -DHAVE_TYPE_SQLROWOFFSET"
+end
+$have_odbcinst_h = have_header("odbcinst.h")
+begin
+  if PLATFORM !~ /(mingw|cygwin)/ then
+    header = "sqltypes.h"
+  else
+    header = ["windows.h", "sqltypes.h"]
+  end
+  if defined? have_type
+    have_type("SQLROWSETSIZE", header)
+  else
+    throw
+  end
+rescue
+  puts "WARNING: please check sqltypes.h for SQLROWSETSIZE manually,"
+  puts "WARNING: if defined, modify CFLAGS in Makefile to contain"
+  puts "WARNING: the option -DHAVE_TYPE_SQLROWSETSIZE"
+end
+$have_odbcinst_h = have_header("odbcinst.h")
 
 if PLATFORM =~ /mswin32/ then
   if !have_library_ex("odbc32", "SQLAllocConnect", "sql.h") ||
@@ -92,9 +125,9 @@ if PLATFORM =~ /mswin32/ then
   have_func("SQLInstallerError", "odbcinst.h")
 # mingw untested !!!
 elsif PLATFORM =~ /(mingw|cygwin)/ then
-  have_library("odbc32", "")
-  have_library("odbccp32", "")
-  have_library("user32", "")
+  have_library("odbc32")
+  have_library("odbccp32")
+  have_library("user32")
 elsif (testdlopen && PLATFORM !~ /(macos|darwin)/ && CONFIG["CC"] =~ /gcc/ && have_func("dlopen", "dlfcn.h") && have_library("dl", "dlopen")) then
   $LDFLAGS+=" -Wl,-init -Wl,ruby_odbc_init -Wl,-fini -Wl,ruby_odbc_fini"
   $CPPFLAGS+=" -DHAVE_SQLCONFIGDATASOURCE"
@@ -121,4 +154,4 @@ else
   end
 end
 
-create_makefile("odbc_ext")
+create_makefile("odbc")

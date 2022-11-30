@@ -1,4 +1,4 @@
-# $Id: test.rb,v 1.7 2010/02/18 12:30:43 chw Exp chw $
+# $Id: test.rb,v 1.8 2015/03/25 10:53:59 chw Exp chw $
 #
 # Execute in ruby-odbc top directory.
 #
@@ -13,8 +13,8 @@ $uid = ARGV.shift
 $pwd = ARGV.shift
 
 begin
-  Dir.glob("test/[0-9]*.rb").sort.each do |f|
-    f =~ /^test\/\d+(.*)\.rb$/
+  Dir.glob("[0-9]*.rb").sort.each do |f|
+    f =~ /\d+(.*)\.rb$/
     print $1 + "."*(20-$1.length)
     $stdout.flush
     load f
