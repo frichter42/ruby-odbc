@@ -1945,6 +1945,14 @@ get_err_or_info(SQLHENV henv, SQLHDBC hdbc, SQLHSTMT hstmt, int isinfo)
 	    break;
 	}
 	if (v != Qnil) {
+            /* Richter, MuV, 2022-05-04, tag error message with encoding */
+            /* fprintf(stderr, "in get_err_or_info, building array of error messages\n"); */
+            #ifdef USE_RB_ENC
+                /* fprintf(stderr, "USE_RB_ENC is ON\n"); */
+                rb_enc_associate(v, rb_enc);
+	    #else
+	        /* fprintf(stderr, "USE_RB_ENC is OFF\n"); */
+	    #endif
 	    if (v0 == Qnil) {
 		v0 = v;
 		a = rb_ary_new();
@@ -6629,16 +6637,9 @@ stmt_param_output_value(int argc, VALUE *argv, VALUE self)
 	    DATE_STRUCT *date;
 
 	    if (q->dbcp != NULL && q->dbcp->rbtime == Qtrue) {
-		const char *p;
-		char buffer[128];
-		VALUE d;
-
+                /* Richter, MuV, 2022-11-29, use Date.new instead of Date.parse */
 		date = (DATE_STRUCT *) q->paraminfo[vnum].outbuf;
-		p = (q->dbcp->gmtime == Qtrue) ? "+00:00" : "";
-		sprintf(buffer, "%d-%d-%dT00:00:00%s",
-			date->year, date->month, date->day, p);
-		d = rb_str_new2(buffer);
-		v = rb_funcall(rb_cDate, IDparse, 1, d);
+		v = rb_funcall(rb_cDate, IDnew, 3, INT2FIX(date->year), INT2FIX(date->month), INT2FIX(date->day));
 	    } else {
 		v = Data_Make_Struct(Cdate, DATE_STRUCT, 0, xfree, date);
 		*date = *((DATE_STRUCT *) q->paraminfo[vnum].outbuf);
@@ -7285,16 +7286,9 @@ do_fetch(STMT *q, int mode)
 		    DATE_STRUCT *date;
 
 		    if (q->dbcp != NULL && q->dbcp->rbtime == Qtrue) {
-			const char *p;
-			char buffer[128];
-			VALUE d;
-
+                        /* Richter, MuV, 2022-11-29, use Date.new instead of Date.parse */
 			date = (DATE_STRUCT *) valp;
-			p = (q->dbcp->gmtime == Qtrue) ? "+00:00" : "";
-			sprintf(buffer, "%d-%d-%dT00:00:00%s",
-				date->year, date->month, date->day, p);
-			d = rb_str_new2(buffer);
-			v = rb_funcall(rb_cDate, IDparse, 1, d);
+			v = rb_funcall(rb_cDate, IDnew, 3, INT2FIX(date->year), INT2FIX(date->month), INT2FIX(date->day));
 		    } else {
 			v = Data_Make_Struct(Cdate, DATE_STRUCT, 0, xfree,
 					     date);
