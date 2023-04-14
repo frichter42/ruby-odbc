@@ -74,6 +74,14 @@ typedef SQLCHAR SQLTCHAR;
 #define FUNCALL_NOARGS(o, m) rb_funcall((o), (m), 0, NULL)
 #endif
 
+/* ruby 3.2 removed taint mechanism */
+#if (RUBY_API_VERSION_CODE >= 30200)
+#define rb_tainted_str_new(str, len) \
+    rb_str_new(str, len)
+#define rb_tainted_str_new2(str) \
+    rb_str_new_cstr(str)
+#endif
+
 #ifdef HAVE_RUBY_THREAD_H
 #include "ruby/thread.h"
 #endif
