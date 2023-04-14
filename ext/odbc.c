@@ -80,6 +80,8 @@ typedef SQLCHAR SQLTCHAR;
     rb_str_new(str, len)
 #define rb_tainted_str_new2(str) \
     rb_str_new_cstr(str)
+#define rb_obj_taint(v) \
+    (v)
 #endif
 
 #ifdef HAVE_RUBY_THREAD_H
