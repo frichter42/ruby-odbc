@@ -4776,8 +4776,16 @@ dbc_info(int argc, VALUE *argv, VALUE self, int mode)
     VALUE which = Qnil, which2 = Qnil, which3 = Qnil;
 #ifdef UNICODE
     SQLWCHAR *swhich = NULL, *swhich2 = NULL;
+    SQLWCHAR *table_spec_with_schema = NULL;
+    SQLWCHAR *table_spec = NULL;
+    SQLWCHAR *schema_spec = NULL;
+    SQLWCHAR *tmp_p = NULL;
 #else
     SQLCHAR *swhich = NULL, *swhich2 = NULL;
+    SQLCHAR *table_spec_with_schema = NULL;
+    SQLCHAR *table_spec = NULL;
+    SQLCHAR *schema_spec = NULL;
+    SQLCHAR *tmp_p = NULL;
 #endif
     char *msg;
     const char *argspec = NULL;
@@ -4885,12 +4893,43 @@ dbc_info(int argc, VALUE *argv, VALUE self, int mode)
 	}
 	break;
     case INFO_COLUMNS:
+	table_spec = NULL;
+	schema_spec = NULL;
+	if (swhich != NULL) {
+		/* we copy swhich to tmp. storage ans split at first dot into schema and table */
+#ifdef UNICODE
+		int swhich_uc_len = uc_strlen(swhich);
+		table_spec_with_schema = xmalloc(swhich_uc_len * 6 + 1);
+		memcpy(table_spec_with_schema, swhich, swhich_uc_len * 6 + 1);
+		tmp_p = uc_strchr(table_spec_with_schema, (SQLWCHAR) '.');
+		table_spec = table_spec_with_schema;
+		if (tmp_p != NULL) {
+			schema_spec = table_spec_with_schema;
+			*tmp_p = (SQLWCHAR) '\0';
+			table_spec = tmp_p + 1;
+		}
+#else
+		table_spec_with_schema = xmalloc(strlen((const char *) swhich) + 1);
+		memcpy(table_spec_with_schema, swhich, strlen((const char *) swhich) + 1);
+		tmp_p = strchr(table_spec_with_schema, '.');
+		table_spec = table_spec_with_schema;
+		if (tmp_p != NULL) {
+			schema_spec = table_spec_with_schema;
+			*tmp_p = '\0';
+			table_spec = tmp_p + 1;
+		}
+#endif
+	}
 	if (!succeeded(SQL_NULL_HENV, SQL_NULL_HDBC, hstmt,
-		       SQLCOLUMNS(hstmt, NULL, 0, NULL, 0,
-				  swhich, (swhich == NULL) ? 0 : SQL_NTS,
+		       SQLCOLUMNS(hstmt, NULL, 0,
+				  schema_spec, (schema_spec == NULL) ? 0 : SQL_NTS,
+				  table_spec, (table_spec == NULL) ? 0 : SQL_NTS,
 				  swhich2, (swhich2 == NULL) ? 0 : SQL_NTS),
 		       &msg, "SQLColumns")) {
 	    goto error;
+	}
+	if (swhich != NULL) {
+		xfree(table_spec_with_schema);
 	}
 	break;
     case INFO_PRIMKEYS:
