@@ -1830,8 +1830,10 @@ free_stmt(STMT *q)
     tracemsg(2, fprintf(stderr, "ObjFree: STMT %p\n", q););
     if (q->hstmt != SQL_NULL_HSTMT) {
 	/* Issue warning message. */
-	fprintf(stderr,	"WARNING: #<ODBC::Statement:0x%lx> was not dropped"
-		" before garbage collection.\n", (long) qself);
+	/*
+	 * fprintf(stderr,	"WARNING: #<ODBC::Statement:0x%lx> was not dropped"
+	 *	" before garbage collection.\n", (long) qself);
+         */
 	callsql(SQL_NULL_HENV, SQL_NULL_HDBC, q->hstmt,
 		SQLFreeStmt(q->hstmt, SQL_DROP), "SQLFreeStmt(SQL_DROP)");
 	q->hstmt = SQL_NULL_HSTMT;
