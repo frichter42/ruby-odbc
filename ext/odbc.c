@@ -6486,7 +6486,7 @@ stmt_close(VALUE self)
 	callsql(SQL_NULL_HENV, SQL_NULL_HDBC, q->hstmt,
 		SQLFreeStmt(q->hstmt, SQL_CLOSE), "SQLFreeStmt(SQL_CLOSE)");
     }
-    free_stmt_sub(q, 1);
+    free_stmt_sub(q, 0);
     return self;
 }
 
