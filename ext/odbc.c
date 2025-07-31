@@ -7229,7 +7229,7 @@ do_fetch(STMT *q, int mode)
 	VALUE v, name;
 	char *valp, *freep = NULL;
 
-	fprintf(stderr, "muvweb-debug: Get Data for column %d, curlen is %d", i, curlen);
+	fprintf(stderr, "muvweb-debug: Get Data for column %d, curlen is %d\n", i, curlen);
 	if (curlen == SQL_NO_TOTAL) {
 	    SQLLEN chunksize = SEGSIZE;
 
@@ -7240,6 +7240,7 @@ do_fetch(STMT *q, int mode)
 	    valp = ALLOC_N(char, chunksize + 1);
 #endif
 	    freep = valp;
+	    fprintf(stderr, "muvweb-debug: chunksize is %d\n", chunksize);
 	    while ((curlen == SQL_NO_TOTAL) || (curlen > chunksize)) {
 		SQLRETURN rc;
 		int ret;
@@ -7292,6 +7293,7 @@ do_fetch(STMT *q, int mode)
 		}
 		freep = valp;
 	    }
+	    fprintf(stderr, "muvweb-debug: totlen is %d\n", totlen);
 	    if (totlen > 0) {
 		curlen = totlen;
 	    }
