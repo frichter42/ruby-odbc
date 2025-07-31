@@ -7229,6 +7229,7 @@ do_fetch(STMT *q, int mode)
 	VALUE v, name;
 	char *valp, *freep = NULL;
 
+	fprintf(stderr, "muvweb-debug: Get Data for column %d, curlen is %d", i, curlen);
 	if (curlen == SQL_NO_TOTAL) {
 	    SQLLEN chunksize = SEGSIZE;
 
