@@ -1,6 +1,6 @@
 /*
  * ODBC-Ruby binding
- * Copyright (c) 2001-2020 Christian Werner <chw@ch-werner.de>
+ * Copyright (c) 2001-2023 Christian Werner <chw@ch-werner.de>
  * Portions copyright (c) 2004 Ryszard Niewisiewicz <micz@fibernet.pl>
  * Portions copyright (c) 2006 Carl Blakeley <cblakeley@openlinksw.co.uk>
  *
@@ -8,7 +8,7 @@
  * and redistribution of this file and for a
  * DISCLAIMER OF ALL WARRANTIES.
  *
- * $Id: odbc.c,v 1.80 2020/12/25 21:45:42 chw Exp chw $
+ * $Id: odbc.c,v 1.81 2023/09/04 09:50:17 chw Exp chw $
  */
 
 #undef ODBCVER
@@ -64,8 +64,10 @@ typedef SQLCHAR SQLTCHAR;
 #define SQLROWSETSIZE SQLULEN
 #endif
 
+#ifdef RUBY_VERSION_MAJOR
 #if (RUBY_VERSION_MAJOR <= 1) && (RUBY_VERSION_MINOR < 9)
 #define TIME_USE_USEC 1
+#endif
 #endif
 
 #if (RUBY_API_VERSION_CODE >= 20500)
@@ -74,18 +76,22 @@ typedef SQLCHAR SQLTCHAR;
 #define FUNCALL_NOARGS(o, m) rb_funcall((o), (m), 0, NULL)
 #endif
 
-/* ruby 3.2 removed taint mechanism */
-#if (RUBY_API_VERSION_CODE >= 30200)
-#define rb_tainted_str_new(str, len) \
-    rb_str_new(str, len)
-#define rb_tainted_str_new2(str) \
-    rb_str_new_cstr(str)
-#define rb_obj_taint(v) \
-    (v)
-#endif
-
 #ifdef HAVE_RUBY_THREAD_H
 #include "ruby/thread.h"
+#endif
+
+/*
+ * Tainted strings for Ruby <= 2.7, no ops otherwise.
+ */
+
+#if (RUBY_API_VERSION_CODE < 20700)
+#define RB_TAINTED_STR_NEW(s, l) rb_tainted_str_new(s, l)
+#define RB_TAINTED_STR_NEW2(s) rb_tainted_str_new2(s)
+#define RB_OBJ_TAINT(o) rb_obj_taint(o)
+#else
+#define RB_TAINTED_STR_NEW(s, l) rb_str_new(s, l)
+#define RB_TAINTED_STR_NEW2(s) rb_str_new2(s)
+#define RB_OBJ_TAINT(o) o
 #endif
 
 /*
@@ -164,6 +170,17 @@ static SQLRETURN tracesql(SQLHENV henv, SQLHDBC hdbc, SQLHSTMT hstmt,
 #define tracemsg(t, x)
 #define tracesql(a, b, c, d, e) d
 #endif
+
+/*
+ * When to call start_gc():
+ *
+ *  gc_threshold  < 0:	never (the default)
+ *  gc_threshold == 0:	on connection close
+ *  gc_threshold >= 0:	on connection close and after
+ *			fetching gc_threshold rows
+ */
+
+static int gc_threshold = -1;
 
 #ifndef SQL_SUCCEEDED
 #define SQL_SUCCEEDED(x) \
@@ -380,7 +397,6 @@ static const char *colnamebuf[] = {
 #define LEN_ALIGN(x) \
     ((x) + sizeof (double) - (((x) + sizeof (double)) % sizeof (double)))
 
-
 /*
  *----------------------------------------------------------------------
  *
@@ -1390,7 +1406,7 @@ uc_tainted_str_new(SQLWCHAR *str, int len)
     if ((cp != NULL) && (str != NULL)) {
 	ulen = mkutf(cp, str, len);
     }
-    v = rb_tainted_str_new((cp != NULL) ? cp : "", ulen);
+    v = RB_TAINTED_STR_NEW((cp != NULL) ? cp : "", ulen);
 #ifdef USE_RB_ENC
     rb_enc_associate(v, rb_enc);
 #endif
@@ -1882,7 +1898,7 @@ set_err(const char *msg, int warn)
     rb_enc_associate(v, rb_enc);
 #endif
     a = rb_ary_new2(1);
-    rb_ary_push(a, rb_obj_taint(v));
+    rb_ary_push(a, RB_OBJ_TAINT(v));
     CVAR_SET(Cobj, warn ? IDatatinfo : IDataterror, a);
     return STR2CSTR(v);
 }
@@ -1969,7 +1985,7 @@ get_err_or_info(SQLHENV henv, SQLHDBC hdbc, SQLHSTMT hstmt, int isinfo)
 		v0 = v;
 		a = rb_ary_new();
 	    }
-	    rb_ary_push(a, rb_obj_taint(v));
+	    rb_ary_push(a, RB_OBJ_TAINT(v));
 	    tracemsg(1, fprintf(stderr, "  | %s\n", STR2CSTR(v)););
 	}
     }
@@ -2065,7 +2081,7 @@ get_installer_err()
 		v0 = v;
 		a = rb_ary_new();
 	    }
-	    rb_ary_push(a, rb_obj_taint(v));
+	    rb_ary_push(a, RB_OBJ_TAINT(v));
 	    tracemsg(1, fprintf(stderr, "  | %s\n", STR2CSTR(v)););
 	}
     }
@@ -2319,7 +2335,7 @@ dbc_raise(VALUE self, VALUE msg)
     buf[SQL_MAX_MESSAGE_LENGTH] = '\0';
     v = rb_str_new2(buf);
     a = rb_ary_new2(1);
-    rb_ary_push(a, rb_obj_taint(v));
+    rb_ary_push(a, RB_OBJ_TAINT(v));
     CVAR_SET(Cobj, IDataterror, a);
     rb_raise(Cerror, "%s", buf);
     return Qnil;
@@ -2409,8 +2425,8 @@ dbc_dsns(VALUE self)
 #else
 	dsnLen = (dsnLen == 0) ? (SQLSMALLINT) strlen(dsn) : dsnLen;
 	descrLen = (descrLen == 0) ? (SQLSMALLINT) strlen(descr) : descrLen;
-	rb_iv_set(odsn, "@name", rb_tainted_str_new(dsn, dsnLen));
-	rb_iv_set(odsn, "@descr", rb_tainted_str_new(descr, descrLen));
+	rb_iv_set(odsn, "@name", RB_TAINTED_STR_NEW(dsn, dsnLen));
+	rb_iv_set(odsn, "@descr", RB_TAINTED_STR_NEW(descr, descrLen));
 #endif
 	rb_ary_push(aret, odsn);
 	first = dsnLen = descrLen = 0;
@@ -2474,13 +2490,13 @@ dbc_drivers(VALUE self)
 	}
 #else
 	driverLen = (driverLen == 0) ? (SQLSMALLINT) strlen(driver) : driverLen;
-	rb_iv_set(odrv, "@name", rb_tainted_str_new(driver, driverLen));
+	rb_iv_set(odrv, "@name", RB_TAINTED_STR_NEW(driver, driverLen));
 	for (attr = attrs; *attr; attr += strlen(attr) + 1) {
 	    char *p = strchr(attr, '=');
 
 	    if ((p != NULL) && (p != attr)) {
-		rb_hash_aset(h, rb_tainted_str_new(attr, p - attr),
-			     rb_tainted_str_new2(p + 1));
+		rb_hash_aset(h, RB_TAINTED_STR_NEW(attr, p - attr),
+			     RB_TAINTED_STR_NEW2(p + 1));
 		count++;
 	    }
 	}
@@ -2789,7 +2805,7 @@ dbc_rfdsn(int argc, VALUE *argv, VALUE self)
 	if (SQLReadFileDSN((LPCSTR) sfname, (LPCSTR) saname,
 			   (LPCSTR) skname, (LPSTR) valbuf,
 			   sizeof (valbuf), NULL)) {
-	    return rb_tainted_str_new2((char *) valbuf);
+	    return RB_TAINTED_STR_NEW2((char *) valbuf);
 	}
     }
 #else
@@ -2799,7 +2815,7 @@ dbc_rfdsn(int argc, VALUE *argv, VALUE self)
     valbuf[0] = '\0';
     if (SQLReadFileDSN(sfname, saname, skname, valbuf,
 		       sizeof (valbuf), NULL)) {
-	return rb_tainted_str_new2(valbuf);
+	return RB_TAINTED_STR_NEW2(valbuf);
     }
 #endif
 #if defined(HAVE_SQLINSTALLERERROR) || (defined(UNICODE) && defined(HAVE_SQLINSTALLERERRORW))
@@ -3210,7 +3226,9 @@ dbc_disconnect(int argc, VALUE *argv, VALUE self)
 	}
 	p->hdbc = SQL_NULL_HDBC;
 	unlink_dbc(p);
-	start_gc();
+	if (gc_threshold >= 0) {
+	   start_gc();
+	}
 	return Qtrue;
     }
     return Qfalse;
@@ -3227,10 +3245,10 @@ dbc_disconnect(int argc, VALUE *argv, VALUE self)
 #ifndef SQL_DTC_TRANSITION_COST
 #define SQL_DTC_TRANSITION_COST 1750
 #endif
-#ifndef SQL_DTC_ENLIST_EXPENSIZE
+#ifndef SQL_DTC_ENLIST_EXPENDSIZE
 #define SQL_DTC_ENLIST_EXPENDSIZE 1
 #endif
-#ifndef SQL_DTC_UNENLIST_EXPENSIZE
+#ifndef SQL_DTC_UNENLIST_EXPENDSIZE
 #define SQL_DTC_UNENLIST_EXPENDSIZE 2
 #endif
 
@@ -4012,7 +4030,12 @@ dbc_getinfo(int argc, VALUE *argv, VALUE self)
     SQLUSMALLINT sbuffer;
     SQLUINTEGER lbuffer;
     SQLSMALLINT len_in, len_out;
-    char *string = NULL, buffer[513];
+    char *string = NULL;
+#ifdef UNICODE
+    SQLWCHAR buffer[513];
+#else
+    char buffer[513];
+#endif
 
     rb_scan_args(argc, argv, "11", &which, &vtype);
     switch (TYPE(which)) {
@@ -4118,7 +4141,11 @@ dbc_getinfo(int argc, VALUE *argv, VALUE self)
 	break;
     default:
     case SQL_C_CHAR:
+#ifdef UNICODE
+	len_in = sizeof (buffer) - sizeof (SQLWCHAR);
+#else
 	len_in = sizeof (buffer) - 1;
+#endif
 	memset(buffer, 0, sizeof (buffer));
 	ret = SQLGetInfo(p->hdbc, (SQLUSMALLINT) info,
 			 (SQLPOINTER) buffer, len_in, &len_out);
@@ -4135,7 +4162,11 @@ dbc_getinfo(int argc, VALUE *argv, VALUE self)
 	return INT2NUM(lbuffer);
     default:
     case SQL_C_CHAR:
+#ifdef UNICODE
+	return uc_str_new(buffer, len_out / sizeof (SQLWCHAR));
+#else
 	return rb_str_new(buffer, len_out);
+#endif
     }
     return Qnil;
 }
@@ -4594,7 +4625,7 @@ make_column(SQLHSTMT hstmt, int i, int upc, int use_scn)
 	    len = 0;
 	}
 	mkutf(tmp, name, len);
-	v = rb_tainted_str_new2(upcase_if(tmp, 1));
+	v = RB_TAINTED_STR_NEW2(upcase_if(tmp, 1));
 #ifdef USE_RB_ENC
 	rb_enc_associate(v, rb_enc);
 #endif
@@ -4606,7 +4637,7 @@ make_column(SQLHSTMT hstmt, int i, int upc, int use_scn)
 	rb_iv_set(obj, "@name", uc_tainted_str_new2(name));
     }
 #else
-    rb_iv_set(obj, "@name", rb_tainted_str_new2(upcase_if(name, upc)));
+    rb_iv_set(obj, "@name", RB_TAINTED_STR_NEW2(upcase_if(name, upc)));
 #endif
     v = Qnil;
     name[0] = 0;
@@ -4624,7 +4655,7 @@ make_column(SQLHSTMT hstmt, int i, int upc, int use_scn)
 #ifdef UNICODE
 	v = uc_tainted_str_new2(name);
 #else
-	v = rb_tainted_str_new2(name);
+	v = RB_TAINTED_STR_NEW2(name);
 #endif
     }
     rb_iv_set(obj, "@table", v);
@@ -5283,9 +5314,9 @@ env_odbcver(int argc, VALUE *argv, VALUE self)
  *----------------------------------------------------------------------
  */
 
-#define OPT_LEVEL_STMT         1
-#define OPT_LEVEL_DBC          2
-#define OPT_LEVEL_BOTH         (OPT_LEVEL_STMT | OPT_LEVEL_DBC)
+#define OPT_LEVEL_STMT		1
+#define OPT_LEVEL_DBC		2
+#define OPT_LEVEL_BOTH		(OPT_LEVEL_STMT | OPT_LEVEL_DBC)
 
 #define OPT_CONST_INT(x, level) { #x, x, level }
 #define OPT_CONST_END    { NULL, -1 }
@@ -6756,7 +6787,7 @@ stmt_param_output_value(int argc, VALUE *argv, VALUE self)
 	break;
 #endif
     case SQL_C_CHAR:
-	v = rb_tainted_str_new(q->paraminfo[vnum].outbuf,
+	v = RB_TAINTED_STR_NEW(q->paraminfo[vnum].outbuf,
 			       q->paraminfo[vnum].rlen);
 	break;
     }
@@ -6832,7 +6863,7 @@ stmt_cursorname(int argc, VALUE *argv, VALUE self)
 	return uc_tainted_str_new(cname, cnLen);
 #else
 	cnLen = (cnLen == 0) ? (SQLSMALLINT) strlen((char *) cname) : cnLen;
-	return rb_tainted_str_new((char *) cname, cnLen);
+	return RB_TAINTED_STR_NEW((char *) cname, cnLen);
 #endif
     }
     if (TYPE(cn) != T_STRING) {
@@ -6918,7 +6949,7 @@ stmt_columns(int argc, VALUE *argv, VALUE self)
 
 		sprintf(buf, "#%d", i);
 		name = rb_str_dup(name);
-		name = rb_obj_taint(rb_str_cat2(name, buf));
+		name = RB_OBJ_TAINT(rb_str_cat2(name, buf));
 	    }
 	    rb_hash_aset(res, name, obj);
 	}
@@ -6977,7 +7008,7 @@ do_fetch(STMT *q, int mode)
     if (q->ncols <= 0) {
 	rb_raise(Cerror, "%s", set_err("No columns in result set", 0));
     }
-    if (++q->fetchc >= 500) {
+    if (gc_threshold > 0 && ++q->fetchc >= gc_threshold) {
 	q->fetchc = 0;
 	start_gc();
     }
@@ -7167,7 +7198,7 @@ do_fetch(STMT *q, int mode)
 		    }
 		    for (i = 0; i < 4 * q->ncols; i++) {
 			res = colbuf[i / q->ncols];
-			cname = rb_tainted_str_new2(q->colnames[i]);
+			cname = RB_TAINTED_STR_NEW2(q->colnames[i]);
 #ifdef USE_RB_ENC
 			rb_enc_associate(cname, rb_enc);
 #endif
@@ -7175,7 +7206,7 @@ do_fetch(STMT *q, int mode)
 			if (rb_funcall(res, IDkeyp, 1, cname) == Qtrue) {
 			    char *p;
 
-			    cname = rb_tainted_str_new2(q->colnames[i]);
+			    cname = RB_TAINTED_STR_NEW2(q->colnames[i]);
 #ifdef USE_RB_ENC
 			    rb_enc_associate(cname, rb_enc);
 #endif
@@ -7412,7 +7443,7 @@ do_fetch(STMT *q, int mode)
 		break;
 #endif
 	    default:
-		v = rb_tainted_str_new(valp, curlen);
+		v = RB_TAINTED_STR_NEW(valp, curlen);
 		break;
 	    }
 	}
@@ -7425,14 +7456,14 @@ do_fetch(STMT *q, int mode)
 	    valp = q->colnames[i + offc];
 	    name = (q->colvals == NULL) ? Qnil : q->colvals[i + offc];
 	    if (name == Qnil) {
-		name = rb_tainted_str_new2(valp);
+		name = RB_TAINTED_STR_NEW2(valp);
 #ifdef USE_RB_ENC
 		rb_enc_associate(name, rb_enc);
 #endif
 		if (rb_funcall(res, IDkeyp, 1, name) == Qtrue) {
 		    char *p;
 
-		    name = rb_tainted_str_new2(valp);
+		    name = RB_TAINTED_STR_NEW2(valp);
 #ifdef USE_RB_ENC
 		    rb_enc_associate(name, rb_enc);
 #endif
@@ -8646,14 +8677,28 @@ stmt_proc(int argc, VALUE *argv, VALUE self)
 {
     VALUE sql, ptype, psize, pnum = Qnil, stmt, args[2];
     int parnum = 0;
+#if (RUBY_API_VERSION_CODE >= 30000)
+    VALUE block, proc_new_args[2];
+#endif
 
+#if (RUBY_API_VERSION_CODE >= 30000)
+    rb_scan_args(argc, argv, "13&", &sql, &ptype, &psize, &pnum, &block);
+#else
     rb_scan_args(argc, argv, "13", &sql, &ptype, &psize, &pnum);
+#endif
     if (!rb_block_given_p()) {
 	rb_raise(rb_eArgError, "block required");
     }
     stmt = stmt_prep_int(1, &sql, self, 0);
+#if (RUBY_API_VERSION_CODE >= 30000)
+    proc_new_args[0] = stmt;
+#endif
     if (argc == 1) {
+#if (RUBY_API_VERSION_CODE >= 30000)
+	return rb_funcall_with_block(Cproc, IDnew, 1, proc_new_args, block);
+#else
 	return rb_funcall(Cproc, IDnew, 1, stmt);
+#endif
     }
     if ((argc < 4) || (pnum == Qnil)) {
 	pnum = INT2NUM(parnum);
@@ -8671,7 +8716,12 @@ stmt_proc(int argc, VALUE *argv, VALUE self)
 	args[1] = INT2NUM(256);
     }
     stmt_param_output_size(2, args, stmt);
+#if (RUBY_API_VERSION_CODE >= 30000)
+    proc_new_args[1] = pnum;
+    return rb_funcall_with_block(Cproc, IDnew, 2, proc_new_args, block);
+#else
     return rb_funcall(Cproc, IDnew, 2, stmt, pnum);
+#endif
 }
 
 static VALUE
@@ -8873,6 +8923,18 @@ mod_trace(int argc, VALUE *argv, VALUE self)
 #else
     return INT2NUM(0);
 #endif
+}
+
+static VALUE
+mod_gc_threshold(int argc, VALUE *argv, VALUE self)
+{
+    VALUE v = Qnil;
+
+    rb_scan_args(argc, argv, "01", &v);
+    if (argc > 0) {
+	gc_threshold = NUM2INT(v);
+    }
+    return INT2NUM(gc_threshold);
 }
 
 /*
@@ -9249,6 +9311,8 @@ Init_odbc()
     rb_define_module_function(Modbc, "connection_pooling", env_cpooling, -1);
     rb_define_module_function(Modbc, "connection_pooling=", env_cpooling, -1);
     rb_define_module_function(Modbc, "raise", dbc_raise, 1);
+    rb_define_module_function(Modbc, "gc_threshold", mod_gc_threshold, -1);
+    rb_define_module_function(Modbc, "gc_threshold=", mod_gc_threshold, -1);
 
     /* singleton methods and constructors */
     rb_define_singleton_method(Cobj, "error", dbc_error, 0);

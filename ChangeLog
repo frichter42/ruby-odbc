@@ -1,6 +1,11 @@
 ODBC binding for Ruby
 ---------------------
 
+Mon Sep 04 2023 version 0.999992 released
+
+	* update to compile with newer Ruby releases
+	* allow tuning GC threshold
+
 Sat Dec 26 2020 version 0.999991 released
 
 	* update to compile with newer Ruby releases
