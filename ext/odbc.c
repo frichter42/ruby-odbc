@@ -4036,6 +4036,7 @@ dbc_getinfo(int argc, VALUE *argv, VALUE self)
 #else
     char buffer[513];
 #endif
+    char err_buffer[513];
 
     rb_scan_args(argc, argv, "11", &which, &vtype);
     switch (TYPE(which)) {
@@ -4081,9 +4082,9 @@ dbc_getinfo(int argc, VALUE *argv, VALUE self)
 			 0));
 	return Qnil;
     case 1:
-	sprintf(buffer, "Unknown info type %d for ODBC::Connection.get_info",
+	sprintf(err_buffer, "Unknown info type %d for ODBC::Connection.get_info",
 		info);
-	set_err(buffer, 1);
+	set_err(err_buffer, 1);
 	break;
     }
     if (vtype != Qnil) {
