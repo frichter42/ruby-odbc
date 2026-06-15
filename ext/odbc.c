@@ -2197,7 +2197,8 @@ succeeded_common(SQLHENV henv, SQLHDBC hdbc, SQLHSTMT hstmt, SQLRETURN ret,
 	return 0;
     }
     if (ret == SQL_SUCCESS_WITH_INFO) {
-	get_err_or_info(henv, hdbc, hstmt, 1);
+	/* get_err_or_info(henv, hdbc, hstmt, 1); */
+	CVAR_SET(Cobj, IDatatinfo, Qnil);
     } else {
 	CVAR_SET(Cobj, IDatatinfo, Qnil);
     }
@@ -7261,13 +7262,15 @@ do_fetch(STMT *q, int mode)
 	break;
     }
     for (i = 0; i < q->ncols; i++) {
-	SQLLEN totlen;
-	SQLLEN curlen = q->coltypes[i].size;
+	SQLLEN totlen __attribute__ ((aligned (8)));
+	SQLLEN curlen __attribute__ ((aligned (8)));
 	SQLSMALLINT type = q->coltypes[i].type;
 	VALUE v, name;
 	char *valp, *freep = NULL;
 
-	/* fprintf(stderr, "muvweb-debug: Get Data for column %d, curlen is %d\n", i, curlen); */
+        curlen = q->coltypes[i].size;
+
+	/* fprintf(stderr, "muvweb-debug: get data for column %d, curlen is %d\n", i, curlen); */
 	if (curlen == SQL_NO_TOTAL) {
 	    SQLLEN chunksize = SEGSIZE;
 
@@ -7450,6 +7453,16 @@ do_fetch(STMT *q, int mode)
 		break;
 #endif
 	    default:
+		/* Universeller Fix für Debian 13 / GCC 14: 
+		 *    Wenn der String kürzer ist als von curlen behauptet und eine Nullterminierung besitzt,
+		 *       verwenden wir die reale String-Länge (strlen), um Speicher-Müll abzuschneiden. */
+		if (type == SQL_C_CHAR && valp != NULL) {
+			    SQLLEN real_bytes = (SQLLEN)strlen((char *)valp);
+			        if (real_bytes < curlen) {
+					        curlen = real_bytes;
+						    }
+		}
+
 		v = RB_TAINTED_STR_NEW(valp, curlen);
 		break;
 	    }
