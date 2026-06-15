@@ -1,6 +1,10 @@
 ODBC binding for Ruby
 ---------------------
 
+Sun Apr 12 2026 version 0.999993 released
+
+	* update to compile/bundle with newer Ruby releases
+
 Mon Sep 04 2023 version 0.999992 released
 
 	* update to compile with newer Ruby releases

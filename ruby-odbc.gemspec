@@ -1,7 +1,7 @@
 require 'date'
 spec = Gem::Specification.new do |s|
   s.name = "ruby-odbc"
-  s.version = "0.999992muv1"
+  s.version = "0.999993muv1"
   s.date = Date.today.to_s
   s.author = "Christian Werner"
   s.email = "chw @nospam@ ch-werner.de"
@@ -9,7 +9,9 @@ spec = Gem::Specification.new do |s|
   s.homepage = "http://www.ch-werner.de/rubyodbc"
   s.files = Dir.glob("**/*")
   s.require_paths << 'lib'
-  s.test_files = Dir.glob('tests/*.rb')
+  # The following two items are deprecated
+  # s.test_files = Dir.glob('tests/*.rb')
+  # s.has_rdoc = false
   s.extra_rdoc_files = ["README", "COPYING", "ChangeLog", "GPL", "doc/odbc.html"]
   s.extensions = ["ext/extconf.rb", "ext/utf8/extconf.rb"]
 end

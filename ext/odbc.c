@@ -8,7 +8,7 @@
  * and redistribution of this file and for a
  * DISCLAIMER OF ALL WARRANTIES.
  *
- * $Id: odbc.c,v 1.81 2023/09/04 09:50:17 chw Exp chw $
+ * $Id: odbc.c,v 1.82 2026/04/12 07:58:38 chw Exp chw $
  */
 
 #undef ODBCVER
@@ -4033,10 +4033,11 @@ dbc_getinfo(int argc, VALUE *argv, VALUE self)
     char *string = NULL;
 #ifdef UNICODE
     SQLWCHAR buffer[513];
+    char *errbuf = (char *) buffer;
 #else
     char buffer[513];
+    char *errbuf = buffer;
 #endif
-    char err_buffer[513];
 
     rb_scan_args(argc, argv, "11", &which, &vtype);
     switch (TYPE(which)) {
@@ -4082,9 +4083,9 @@ dbc_getinfo(int argc, VALUE *argv, VALUE self)
 			 0));
 	return Qnil;
     case 1:
-	sprintf(err_buffer, "Unknown info type %d for ODBC::Connection.get_info",
+	sprintf(errbuf, "Unknown info type %d for ODBC::Connection.get_info",
 		info);
-	set_err(err_buffer, 1);
+	set_err(errbuf, 1);
 	break;
     }
     if (vtype != Qnil) {
