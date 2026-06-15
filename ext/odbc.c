@@ -1915,22 +1915,27 @@ static char *
 get_err_or_info(SQLHENV henv, SQLHDBC hdbc, SQLHSTMT hstmt, int isinfo)
 {
 #ifdef UNICODE
-    SQLWCHAR msg[SQL_MAX_MESSAGE_LENGTH], state[6 + 1];
+    SQLWCHAR msg[1024], state[16];
 #else
-    SQLCHAR msg[SQL_MAX_MESSAGE_LENGTH], state[6 + 1];
+    SQLCHAR msg[1024], state[16];
 #endif
-    char buf[32], tmp[SQL_MAX_MESSAGE_LENGTH];
+    char buf[32], tmp[1024];
     SQLRETURN err;
-    SQLINTEGER nativeerr;
-    SQLSMALLINT len;
+    SQLINTEGER nativeerr = 0;
+    SQLSMALLINT len = 0;
     VALUE v0 = Qnil, a = Qnil, v;
     int done = 0;
+
+    /* Arrays sicherheitshalber mit Nullen initialisieren */
+    memset(state, 0, sizeof(state));
+    memset(msg, 0, sizeof(msg));
+    memset(tmp, 0, sizeof(tmp));
 
     while (!done) {
 	v = Qnil;
 	err = tracesql(henv, hdbc, hstmt,
 		       SQLError(henv, hdbc, hstmt, state, &nativeerr, msg,
-		       SQL_MAX_MESSAGE_LENGTH - 1, &len),
+		       1024, &len),
 		       "SQLError");
 	state[6] = '\0';
 	msg[SQL_MAX_MESSAGE_LENGTH - 1] = '\0';
@@ -2161,7 +2166,7 @@ callsql(SQLHENV henv, SQLHDBC hdbc, SQLHSTMT hstmt, SQLRETURN ret,
 	while (!done) {
 	    err = tracesql(henv, hdbc, hstmt,
 			   SQLError(henv, hdbc, hstmt, state, &nativeerr, msg,
-				    SQL_MAX_MESSAGE_LENGTH - 1, &len),
+				    1024, &len),
 			   "SQLError");
 	    switch (err) {
 	    case SQL_SUCCESS:
