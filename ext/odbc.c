@@ -52,10 +52,18 @@ typedef SQLCHAR SQLTCHAR;
 #endif
 
 #ifndef HAVE_TYPE_SQLLEN
+#if defined(__x86_64__) || defined(__LP64__)
+#define SQLLEN long long
+#else
 #define SQLLEN SQLINTEGER
 #endif
+#endif
 #ifndef HAVE_TYPE_SQLULEN
+#if defined(__x86_64__) || defined(__LP64__)
+#define SQLULEN unsigned long long
+#else
 #define SQLULEN SQLUINTEGER
+#endif
 #endif
 #ifndef HAVE_TYPE_SQLROWOFFSET
 #define SQLROWOFFSET SQLLEN
